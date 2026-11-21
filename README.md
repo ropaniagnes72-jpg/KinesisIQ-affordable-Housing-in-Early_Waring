@@ -100,10 +100,10 @@ See `docs/REPORT.md` §7.
 
 # Pod 3 — KinesisIQ Abstract Measure Definitions
 
-**Author:** [YOUR NAME]
+**Author:** OPANI AGNES
 **Pod:** 3
 **Projects:** 2 (Spatial Forecasting of Affordable Housing Depletion), 6 (Developer Responsiveness & Supply Forecasting)
-**Last updated:** [DATE]
+**Last updated:** 21/11/2026
 
 ## Purpose of this document
 
