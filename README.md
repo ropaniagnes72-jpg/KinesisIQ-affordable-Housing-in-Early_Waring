@@ -50,7 +50,6 @@ All from Toronto Open Data CKAN:
 
 ## Validation summary
 See `docs/VALIDATION.md`.
-## Validation Summary
 
 **Pipeline Notebook:** `Pod3_KinesisIQ_finalRiipen_project.ipynb` | **Database:** `kinesis.db`  
 **Overall Audit Status:** **27 PASS** | **1 WARNING** | **0 CRITICAL FAILURES**
@@ -88,8 +87,6 @@ See `docs/VALIDATION.md`.
 
 ## Limitations
 See `docs/REPORT.md` §7.
-
-## Limitations
 
 * **Sparse Historical Demolition Events:** Only **8%** of ward-years (`2017–2025`) recorded a non-zero net affordable rental loss (`92%` are zero). Because of this sparsity, no statistical point estimator beats a `"Zero loss"` baseline on average error (`1.63` vs. `1.30` units/ward-year `MAE`). Ward-level forecasts must be read as relative risk rankings with 10th–90th percentile uncertainty intervals rather than exact unit point predictions.
 * **Snapshot Pipeline & Delivery Assumptions:** The *Affordable Housing Pipeline* (`277` projects; `21,876` non-completed units) is a point-in-time snapshot without historical status transitions. Stage delivery probabilities (`95%` under construction, `70%` approved, `40%` planning/other) and delivery windows (`1–3`, `2–5`, and `3–7` years) are explicit planning assumptions tested via `0.5×` and `1.25×` sensitivity scenarios rather than empirically calibrated transition rates.
