@@ -50,9 +50,54 @@ All from Toronto Open Data CKAN:
 
 ## Validation summary
 See `docs/VALIDATION.md`.
+## Validation Summary
+
+**Pipeline Notebook:** `Pod3_KinesisIQ_finalRiipen_project.ipynb` | **Database:** `kinesis.db`  
+**Overall Audit Status:** **27 PASS** | **1 WARNING** | **0 CRITICAL FAILURES**
+
+### 1. Automated ETL & Schema Checks (Section D)
+
+| Check Category | Verification Rule | Result | Status |
+| :--- | :--- | :--- | :--- |
+| **Row Counts & Deduplication** | Single authoritative resource loaded per CKAN package; exact duplicates removed (`FOLDERRSN` unique on Development Applications; latest `PERMIT_NUM` revision kept on Permits; `Project ID` unique on Pipeline; latest `RSN` kept on RentSafeTO). | `8,639` unique dated applications (from `26,455` raw rows), `57,292` cleared permit events, `277` pipeline projects, `3,611` RentSafeTO buildings. | **PASS** |
+| **Primary Keys & Idempotency** | `event_id` unique across `kinesis_events`; rerunning replaces rows by `source_dataset` without duplicating records. | Zero duplicate `event_id` keys (`DEMO_`, `DEVAPP_`, `PERMIT_A`, `PERMIT_C`). | **PASS** |
+| **Date Hygiene** | No invented default dates; out-of-range dates (`< 1990` or `> AS_OF + 1 yr`) and negative or `> 10-year` (`3,650`-day) lags set to `NaT`/`NaN`. | `1,048` invalid approval lags and `66,058` invalid build lags nulled; undated rows excluded from `kinesis_events`. | **PASS** |
+| **Outlier Filtering** | Single permits exceeding `5,000` units or `>= 500` units at `< $10,000`/unit zeroed out and flagged `outlier_units`. | `2` implausible permits zeroed and flagged (e.g., `00 363746 CMB` with `637` units at `$0` cost). | **PASS** |
+| **Ward Reconciliation** | Ward-level sums in `ward_depletion` equal dataset totals for mapped records. | Demolition (`4,311`), Pipeline (`21,876`), and RentSafeTO (`3,611`) reconcile with zero discrepancy. | **PASS** |
+
+### 2. Geospatial & Cross-Source Agreement Checks
+
+| Dataset / Bridge | Method | Agreement / Match Rate | Threshold | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Affordable Housing Pipeline** | Point-in-polygon vs. source `Ward Number` | **100.0%** (`277 / 277` rows) | `>= 95.0%` | **PASS** |
+| **RentSafeTO Evaluations** | Point-in-polygon vs. source `WARD` | **100.0%** (`3,442 / 3,442` rows) | `>= 95.0%` | **PASS** |
+| **Address Points Geography Bridge** | Permit `GEO_ID` joined to `ADDRESS_POINT_ID` (`525,035` points) | **97.4%** `GEO_ID` match (`88.6%` coordinates resolved) | `>= 90.0%` | **PASS** |
+| **WARD_GRID Out-of-Sample Lookup** | Grid lookup trained on coordinate-bearing permits | **98.9%** held-out accuracy (`>= 20` rows, `>= 90%` purity) | `>= 95.0%` | **PASS** |
+| **Development Applications** | Point-in-polygon vs. source `WARD_NUMBER` | **91.5%** agreement | `>= 95.0%` | **WARNING** |
+
+> **Note on the 1 Warning (`91.5%` Development Applications ward agreement):** Older application records carry pre-2018 ward boundaries or boundary-straddling parcels; spatial point-in-polygon against the post-2018 25-ward layer (`dim_ward`) takes precedence per notebook design rules.
+
+### 3. Predictive Model Back-Test & Calibration Checks
+
+* **Project 2 Rolling-Origin Back-Test (`2020–2025`, Section B6):**
+  * **Pooled Mean (selected):** `1.63` units/ward-year `MAE` (`5.25` `RMSE`) vs. `"Zero loss (baseline)"` (`1.30` `MAE`, `5.16` `RMSE`) and `"Last year (baseline)"` (`2.26` `MAE`, `8.72` `RMSE`).
+  * **Interval Calibration:** Simulated 10th–90th percentile intervals (nominal `80%` coverage) captured **89%** of actual ward-year outcomes across `2020–2025`.
+* **Project 6 Time-Ordered Evaluation (`Sections C3–C4`):**
+  * **Survival Analysis (Kaplan–Meier):** Right-censored unfinished permits retained (`908` days median ward build lag; `58` days median permit approval lag).
+  * **Application Volume Forecast:** Outperforms seasonal-naive baseline on `MAE`; Poisson interval achieved **72%** empirical test coverage.
 
 ## Limitations
 See `docs/REPORT.md` §7.
+
+## Limitations
+
+* **Sparse Historical Demolition Events:** Only **8%** of ward-years (`2017–2025`) recorded a non-zero net affordable rental loss (`92%` are zero). Because of this sparsity, no statistical point estimator beats a `"Zero loss"` baseline on average error (`1.63` vs. `1.30` units/ward-year `MAE`). Ward-level forecasts must be read as relative risk rankings with 10th–90th percentile uncertainty intervals rather than exact unit point predictions.
+* **Snapshot Pipeline & Delivery Assumptions:** The *Affordable Housing Pipeline* (`277` projects; `21,876` non-completed units) is a point-in-time snapshot without historical status transitions. Stage delivery probabilities (`95%` under construction, `70%` approved, `40%` planning/other) and delivery windows (`1–3`, `2–5`, and `3–7` years) are explicit planning assumptions tested via `0.5×` and `1.25×` sensitivity scenarios rather than empirically calibrated transition rates.
+* **Replacement Commitments vs. Completed Delivery:** In the *Demolition and Replacement* dataset (`4,311` demolished vs. `4,551` replaced), replacement figures reflect approved/permitted commitments rather than verified occupancy, and blank replacement counts are stored as `0`.
+* **No Ward Denominator for City-Wide Active Stock:** *Active Affordable and Social Housing Units* (`13,163` units in Q2 2026) is published solely as a city-wide quarterly series with no ward or address fields, preventing normalization of ward-level deficit probabilities against total existing ward stock.
+* **No Causal Link Between RentSafeTO Scores and Unit Loss:** While **430 of 3,611** evaluated RentSafeTO buildings (`11.9%`, `41,478` units) are flagged on the watch list (`score < 70` or `>= 5`-point drop), no public dataset links low evaluation scores to subsequent demolition or permanent unit removal. Additionally, `11,759` pre-2023 rows lacking compatible scores/dates were excluded to keep `2023–2026` evaluations on one rubric scale.
+* **Address-Based Execution Matching & Text-Parsed Application Units:** Matching development applications to building permits via normalized street address (`addr_key`) captures **6.1%** of housing-related applications, serving as a lower bound because multi-address sites or phased parcels do not share a single street number. Similarly, dwelling unit counts extracted from *Development Applications* descriptions (`43%` parsed) are regex proxies rather than audited zoning counts.
+* **Under-Dispersed Application Volume Intervals & Boundary Shifts:** The quarterly application volume forecast outperforms the seasonal-naive baseline on `MAE`, but its Poisson prediction interval achieved **72%** empirical test coverage (understating variance). *Development Applications* also showed **91.5%** agreement between spatial point-in-polygon ward assignment and the source `WARD_NUMBER` field due to pre-2018 ward boundary labels.
 
 
 
